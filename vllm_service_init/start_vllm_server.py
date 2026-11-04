@@ -90,7 +90,8 @@ def gpu_idle_worker():
     print('[idle_worker] GPU idle worker stopped.')
 
 idle_thread = threading.Thread(target=gpu_idle_worker, daemon=True)
-idle_thread.start()
+if os.environ.get('RZERO_GPU_IDLE_WORKER', '0') == '1':
+    idle_thread.start()
 
 # ------------------------ Timeout Utility (Refactored) --------------------------- #
 # 2. Use the 'stopit.threading_timeoutable' decorator for thread-safe timeouts.
@@ -106,6 +107,10 @@ def grade_answer_with_timeout(res1, res2):
 
 # ---------------------------- Flask Application --------------------------- #
 app = Flask(__name__)
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({'status': 'ready', 'pid': os.getpid()})
 
 @app.route('/hello', methods=['GET'])
 def hello():
@@ -264,5 +269,6 @@ if __name__ == '__main__':
     finally:
         # Gracefully shut down the background thread on exit
         stop_event.set()
-        idle_thread.join()
+        if idle_thread.is_alive():
+            idle_thread.join()
         print('[main] Application shutdown complete.')

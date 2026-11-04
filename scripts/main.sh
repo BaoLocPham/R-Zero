@@ -1,24 +1,14 @@
-Base_model=$1
-Model_abbr=$2
-echo "Model_abbr: $Model_abbr"
-# Initialize first iteration with base model
-bash scripts/questioner_train_penalty.sh  $Base_model $Base_model ${Model_abbr}_questioner_v1
-bash scripts/solver_train.sh $Base_model ${STORAGE_PATH}/models/${Model_abbr}_questioner_v1/global_step_5/actor/huggingface ${Model_abbr}_solver_v1
-
-
-for i in {2..5}; do
-    prev=$((i-1))
-    
-    bash scripts/questioner_train_penalty.sh \
-        ${STORAGE_PATH}/models/${Model_abbr}_solver_v${prev}/global_step_15/actor/huggingface \
-        ${STORAGE_PATH}/models/${Model_abbr}_questioner_v${prev}/global_step_5/actor/huggingface \
-        ${Model_abbr}_questioner_v${i}
-
-    # Train solver
-    bash scripts/solver_train.sh \
-        ${STORAGE_PATH}/models/${Model_abbr}_solver_v${prev}/global_step_15/actor/huggingface \
-        ${STORAGE_PATH}/models/${Model_abbr}_questioner_v${i}/global_step_5/actor/huggingface \
-        ${Model_abbr}_solver_v${i}
-done
-
-bash evaluation/evaluate.bash $Base_model
+#!/usr/bin/env bash
+# Compatibility entry point for the original two positional arguments.
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if (( $# != 2 )); then
+ echo 'Usage: bash scripts/main.sh BASE_MODEL NAME' >&2
+ echo 'For configurable runs: bash scripts/submit.sh reproduce -- --help' >&2
+ exit 2
+fi
+if [[ -n "${SLURM_JOB_ID:-}" ]]; then
+ export RZERO_ROOT="$root"
+ exec bash "$root/slurm/job.sbatch" reproduce --model "$1" --name "$2"
+fi
+exec bash "$root/scripts/submit.sh" reproduce -- --model "$1" --name "$2"

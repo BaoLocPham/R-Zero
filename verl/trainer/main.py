@@ -99,10 +99,14 @@ class Runner:
 def main():
     cli_args = OmegaConf.from_cli()
     default_config = OmegaConf.structured(PPOConfig())
-    with open('tokens.json', 'r') as f:
-        tokens = json.load(f)
-    os.environ['HF_TOKEN'] = tokens['huggingface']
-    os.environ['WANDB_API_KEY'] = tokens['wandb']
+    # Environment credentials take precedence; placeholders are never exported.
+    if os.path.isfile('tokens.json'):
+        with open('tokens.json') as f:
+            tokens = json.load(f)
+        for key, env_name in [('huggingface', 'HF_TOKEN'), ('wandb', 'WANDB_API_KEY')]:
+            value = tokens.get(key, '')
+            if value and not value.startswith('your'):
+                os.environ.setdefault(env_name, value)
     if hasattr(cli_args, "config"):
         config_path = cli_args.pop("config", None)
         file_config = OmegaConf.load(config_path)
@@ -123,10 +127,15 @@ def main():
                 "PYTHONUNBUFFERED": "1",
             }
         }
-        ray.init(runtime_env=runtime_env,num_cpus=16)
+        ray.init(runtime_env=runtime_env,
+                 num_cpus=int(os.environ.get('SLURM_CPUS_PER_TASK', '16')),
+                 _temp_dir=os.environ.get('RAY_TMPDIR', '/tmp/ray'))
 
     runner = Runner.remote()
-    ray.get(runner.run.remote(ppo_config))
+    try:
+        ray.get(runner.run.remote(ppo_config))
+    finally:
+        ray.shutdown()
 
 
 if __name__ == "__main__":

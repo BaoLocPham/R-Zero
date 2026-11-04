@@ -157,7 +157,10 @@ if __name__ == "__main__":
                 # 2-D list, FSDP + TP
                 raise NotImplementedError("FSDP + TP is not supported yet.")
         else:
-            state_dict[key] = torch.cat(state_dict[key], dim=0)
+            # A single-rank FSDP checkpoint contains full ordinary tensors,
+            # including scalar buffers which cannot be concatenated.
+            tensors = state_dict[key]
+            state_dict[key] = tensors[0] if len(tensors) == 1 else torch.cat(tensors, dim=0)
 
     print("Merge completed.")
     hf_path = os.path.join(local_dir, "huggingface")

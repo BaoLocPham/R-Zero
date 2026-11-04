@@ -60,11 +60,9 @@ print(f"[{args.suffix}] Loading data from: {INPUT_FILE}")
 try:
     with open(INPUT_FILE, "r") as f:
         data = json.load(f)
-    # Clean up the input file immediately after loading to save space
-    os.remove(INPUT_FILE)
 except FileNotFoundError:
     print(f"[{args.suffix}] ERROR: Input file not found. Exiting.")
-    exit()
+    raise SystemExit(1)
 
 # Filter data into questions that need processing
 correct_data = [item for item in data if item.get('score') == 0]

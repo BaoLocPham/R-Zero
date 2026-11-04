@@ -43,6 +43,16 @@ This process creates a perfectly tailored, adaptive curriculum. The Challenger l
 
 ---
 
+## Slurm cluster workflow
+
+For this branch, follow [SLURM.md](SLURM.md). It adapts the shared-storage,
+cluster-profile and submission conventions from the sibling `agent-0` repository.
+It supports a single node with at least two Ampere-or-newer NVIDIA GPUs, keeps
+curricula local, and evaluates without a GPT API. The smaller GPU/batch settings
+are a cluster adaptation, rather than an exact reproduction of the published setup.
+The original stage scripts below describe the upstream eight-GPU workflow;
+use the new submission wrapper for this branch.
+
 ## ⚡️ Quickstart Guide
 
 Getting started is easy! Just follow these steps.

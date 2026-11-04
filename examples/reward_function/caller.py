@@ -34,30 +34,40 @@ def split_list(lst, n=4):
 
 os.environ["NO_PROXY"] = "0.0.0.0,127.0.0.1"
 
-def fetch(index,i):
-    response = requests.get(f"http://0.0.0.0:{5000+index}/hello?name={i}")
-    print(response)
-    return True
+def fetch(index, path):
+    base_port = int(os.environ.get('RZERO_SERVICE_PORT', '5000'))
+    response = requests.get(
+        f"http://127.0.0.1:{base_port + index}/hello", params={'name': path},
+        timeout=float(os.environ.get('RZERO_REQUEST_TIMEOUT', '3600')))
+    response.raise_for_status()
+
 
 def generate_results(data):
-    datas = split_list(data,4)
-    random_names = [generate_temp_filename(prefix=f"temp_{i}", suffix=".json") for i in range(4)]
-    for i in range(4):
-        with open(random_names[i],'w') as f:
-            json.dump(datas[i],f,indent=4)
+    count = int(os.environ.get('RZERO_SERVICE_COUNT', '4'))
+    if count < 1:
+        raise ValueError('RZERO_SERVICE_COUNT must be positive')
+    chunks = split_list(data, count)
+    paths = [generate_temp_filename(prefix=f"temp_{i}") for i in range(count)]
+    try:
+        for path, chunk in zip(paths, chunks):
+            with open(path, 'w') as output:
+                json.dump(chunk, output)
+        with ThreadPoolExecutor(max_workers=count) as executor:
+            futures = [executor.submit(fetch, i, path) for i, path in enumerate(paths)]
+            for future in futures:
+                future.result()
+        results = []
+        # Preserve input ordering irrespective of HTTP completion order.
+        for path in paths:
+            with open(path.replace('.json', '_results.json')) as source:
+                results.extend(json.load(source))
+        return results
+    finally:
+        for path in paths:
+            for candidate in (path, path.replace('.json', '_results.json')):
+                if os.path.exists(candidate):
+                    os.remove(candidate)
 
-    final_results = []
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(fetch, i,random_names[i]) for i in range(4)]
-
-        for future in as_completed(futures):
-            print(future.result())
-
-    for future in as_completed(futures):
-        with open(random_names[i].replace('.json','_results.json'),'r') as f:
-            final_results.extend(json.load(f))
-
-    return final_results
 
 def format_reward(predict: str) -> float:
     pattern = re.compile(r"<think>.*</think>.*\\boxed\{.*\}.*", re.DOTALL)

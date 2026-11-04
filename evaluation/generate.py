@@ -10,8 +10,6 @@ STORAGE_PATH = os.getenv("STORAGE_PATH")
 def main(args):
     print("STORAGE_PATH")
     print(STORAGE_PATH)
-    with open('tokens.json','r') as f: 
-        tokens = json.load(f)
     print(args.model, args.dataset)
     tokenizer = AutoTokenizer.from_pretrained(args.model)
     model = vllm.LLM(
