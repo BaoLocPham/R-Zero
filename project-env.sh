@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 export RZERO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$RZERO_ROOT/cluster.local.sh" ]]; then source "$RZERO_ROOT/cluster.local.sh"; fi
+# Named entrypoints override stale local scheduling settings, including in jobs.
+export RZERO_CLUSTER="${RZERO_CLUSTER_OVERRIDE-${RZERO_CLUSTER:-}}"
+export RZERO_GONDOR_GPU="${RZERO_GONDOR_GPU_OVERRIDE-${RZERO_GONDOR_GPU:-a100}}"
 export REPRO_SCRATCH="${REPRO_SCRATCH:-/scratch/$USER/self-evol}"
 export REPRO_CACHE="${REPRO_CACHE:-$REPRO_SCRATCH/cache}"
 export REPRO_ENVS="${REPRO_ENVS:-$REPRO_SCRATCH/envs}"
@@ -17,7 +20,7 @@ export RZERO_MEM="${RZERO_MEM:-128G}"
 export RZERO_TIME="${RZERO_TIME:-24:00:00}"
 if [[ -n "${RZERO_CLUSTER:-}" ]]; then
  case "$RZERO_CLUSTER" in
-  gondor) source "$RZERO_ROOT/clusters/gondor.sh" ;;
+  rohan|gondor) source "$RZERO_ROOT/clusters/$RZERO_CLUSTER.sh" ;;
   *) echo "Unsupported profile: $RZERO_CLUSTER (use custom resource settings instead)" >&2; return 2 ;;
  esac
 fi

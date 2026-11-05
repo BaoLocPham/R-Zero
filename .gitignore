@@ -1,5 +1,6 @@
 cluster.local.sh
 logs/
+locks/
 __pycache__/
 *.pyc
 .venv/

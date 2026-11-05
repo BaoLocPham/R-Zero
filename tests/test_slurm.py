@@ -2,6 +2,7 @@ import ast
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -15,21 +16,52 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class SlurmTests(unittest.TestCase):
-    def test_submission_preserves_options_and_arguments(self):
+    def submit(self, *arguments, **settings):
+        # A user's cluster.local.sh must not override the test's resource settings.
         with tempfile.TemporaryDirectory() as directory:
-            sbatch = Path(directory) / 'sbatch'
-            sbatch.write_text('#!/usr/bin/env python3\nimport json,sys\nprint(json.dumps(sys.argv[1:]))\n')
+            root = Path(directory)
+            shutil.copy(ROOT / 'project-env.sh', root)
+            for name in ('scripts', 'clusters'):
+                shutil.copytree(ROOT / name, root / name)
+            (root / 'slurm').mkdir()
+            shutil.copy(ROOT / 'slurm/job.sbatch', root / 'slurm')
+            sbatch = root / 'sbatch'
+            sbatch.write_text('#!/usr/bin/env python3\nimport json,sys,os\n'
+                              'from pathlib import Path\n'
+                              'Path(os.environ["MOCK_ARGS"]).write_text(json.dumps(sys.argv[1:]))\n'
+                              'if "--test-only" not in sys.argv: print("417;cluster")\n')
             sbatch.chmod(0o755)
-            env = {**os.environ, 'PATH': directory + ':' + os.environ['PATH'],
-                   'RZERO_CLUSTER': 'gondor', 'RZERO_GONDOR_GPU': 'h100'}
-            result = subprocess.run(['bash', 'scripts/submit.sh', 'reproduce', '--time=00:30:00', '--',
-                                     '--model', '/shared/model with spaces', '--iterations', '1'],
-                                    cwd=ROOT, env=env, check=True, capture_output=True, text=True)
-            args = json.loads(result.stdout)
-            self.assertIn('--gres=gpu:h100:2', args)
-            self.assertIn('--partition=gpu-large', args)
-            self.assertIn('--time=00:30:00', args)
-            self.assertEqual(args[-5:], ['reproduce', '--model', '/shared/model with spaces', '--iterations', '1'])
+            env = {key: value for key, value in os.environ.items() if not key.startswith('RZERO_')}
+            env.update(PATH=directory + ':' + os.environ['PATH'], MOCK_ARGS=str(root / 'args.json'), **settings)
+            subprocess.run(['bash', 'scripts/submit.sh', *arguments],
+                           cwd=root, env=env, check=True, capture_output=True, text=True)
+            return json.loads((root / 'args.json').read_text())
+
+    def test_submission_preserves_options_and_arguments(self):
+        args = self.submit('reproduce', '--time=00:30:00', '--',
+                           '--model', '/shared/model with spaces', '--iterations', '1',
+                           RZERO_CLUSTER='gondor', RZERO_GONDOR_GPU='h100')
+        self.assertIn('--gres=gpu:h100:2', args)
+        self.assertIn('--partition=gpu-large', args)
+        self.assertIn('--time=00:30:00', args)
+        self.assertEqual(args[-5:], ['reproduce', '--model', '/shared/model with spaces', '--iterations', '1'])
+
+    def test_install_and_preflight_cpu_requests_are_separate_from_training(self):
+        for kind in ('install', 'preflight'):
+            with self.subTest(kind=kind):
+                args = self.submit(kind, '--test-only', RZERO_CPUS='16')
+                self.assertIn('--cpus-per-task=2', args)
+                self.assertNotIn('--cpus-per-task=16', args)
+                self.assertIn('--test-only', args)
+        for kind in ('reproduce', 'evaluate'):
+            with self.subTest(kind=kind):
+                self.assertIn('--cpus-per-task=16', self.submit(kind, RZERO_CPUS='16'))
+
+    def test_install_cpu_setting_and_command_line_override(self):
+        args = self.submit('install', '--cpus-per-task=1', RZERO_INSTALL_CPUS='4')
+        requests = [arg for arg in args if arg.startswith('--cpus-per-task=')]
+        self.assertEqual(requests, ['--cpus-per-task=4', '--cpus-per-task=1'])
+        self.assertIn('--cpus-per-task=3', self.submit('preflight', RZERO_PREFLIGHT_CPUS='3'))
 
     def test_training_step_limit_across_epoch_boundaries(self):
         # Execute the production loop guards around a tiny stand-in update body.

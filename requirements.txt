@@ -10,7 +10,8 @@ anyio==4.9.0
 astor==0.8.1
 async-timeout==5.0.1
 attrs==25.3.0
-av==14.4.0
+# 14.4.0 is source-only on PyPI; 14.2.0 supplies CPython 3.10 Linux wheels.
+av==14.2.0
 blake3==1.0.5
 blinker==1.9.0
 cachetools==5.5.2

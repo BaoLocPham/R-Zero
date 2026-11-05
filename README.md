@@ -53,6 +53,20 @@ are a cluster adaptation, rather than an exact reproduction of the published set
 The original stage scripts below describe the upstream eight-GPU workflow;
 use the new submission wrapper for this branch.
 
+The familiar Agent0 helpers are available here too:
+
+```bash
+./scripts/rohan.sh install-envs --test-only  # scheduling check; V100 port pending
+./scripts/gondor.sh --gpu a100 install-envs # actual install on a supported backend
+./scripts/logs.sh --install                # installation stdout and stderr
+./scripts/logs.sh                          # latest reproduction job
+./scripts/attach.sh --gpu                  # GPUs in the running reproduction job
+```
+
+See [SLURM.md](SLURM.md#familiar-agent0-commands) for download, allocation,
+preflight, smoke and evaluation commands. The named Rohan profile selects Slurm
+resources; it does not yet add V100 support to the training backend.
+
 ## ⚡️ Quickstart Guide
 
 Getting started is easy! Just follow these steps.
